@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams, Navigate, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Grid3x3, Film, Heart, Tag } from 'lucide-react';
+import { Grid3x3, Film, Heart, Tag, Settings, LogOut } from 'lucide-react';
 import { usePetStore } from '../../store/petStore';
 import { useFeedStore } from '../../store/feedStore';
+import { useAuthStore } from '../../store/authStore';
 import ProfileHeader from './ProfileHeader';
 import PhotoGrid from './PhotoGrid';
 import PostCard from '../feed/PostCard';
@@ -21,16 +22,43 @@ const PetProfilePage: React.FC = () => {
   const { petId } = useParams<{ petId: string }>();
   const { pets } = usePetStore();
   const { posts } = useFeedStore();
+  const { currentPet, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('posts');
 
-  const pet = pets.find((p) => p.id === petId);
+  const pet = pets.find((p) => p.id === petId) ?? (petId === currentPet.id ? currentPet : null);
   if (!pet) return <Navigate to="/" />;
+
+  const isOwn = pet.id === currentPet.id;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const petPosts = posts.filter((p) => p.petId === pet.id);
 
   return (
     <div className="pb-10">
       <ProfileHeader pet={pet} />
+
+      {/* Own-profile quick actions row */}
+      {isOwn && (
+        <div className="flex gap-2 px-4 mt-4">
+          <Link
+            to="/settings"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--pb-hover)] border border-[var(--pb-border)] text-sm font-medium text-[var(--pb-muted)] hover:text-[var(--pb-text)] hover:border-orange-500/30 transition-all"
+          >
+            <Settings className="w-4 h-4" /> Settings
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-sm font-medium text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" /> Log Out
+          </button>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex border-b border-[var(--pb-border-faint)] px-4 mt-4">

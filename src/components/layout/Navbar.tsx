@@ -19,7 +19,7 @@ const Navbar: React.FC = () => {
         <Link to="/" className="flex items-center gap-2 flex-shrink-0">
           <span className="text-2xl">🐾</span>
           <span className="font-display font-black text-xl bg-gradient-to-r from-orange-500 via-violet-500 to-teal-400 bg-clip-text text-transparent hidden sm:block">
-            PawBook
+            FurBook
           </span>
         </Link>
 

@@ -8,6 +8,8 @@ interface PetState {
   reels: Reel[];
   friends: string[];
   pendingRequests: string[];
+  addPet: (pet: Pet) => void;
+  updatePet: (petId: string, updates: Partial<Pet>) => void;
   toggleFriend: (petId: string) => void;
   sendRequest: (petId: string) => void;
   acceptRequest: (petId: string) => void;
@@ -23,6 +25,11 @@ export const usePetStore = create<PetState>((set) => ({
   reels: dummyReels,
   friends: ['pet_002', 'pet_005'],
   pendingRequests: ['pet_004'],
+  addPet: (pet) => set((state) => ({ pets: [...state.pets, pet] })),
+  updatePet: (petId, updates) =>
+    set((state) => ({
+      pets: state.pets.map((p) => (p.id === petId ? { ...p, ...updates } : p)),
+    })),
   toggleFriend: (petId) =>
     set((state) => ({
       friends: state.friends.includes(petId)

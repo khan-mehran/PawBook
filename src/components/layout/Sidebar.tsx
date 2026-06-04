@@ -1,7 +1,7 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, Film, Users, Compass, Bookmark, Settings } from 'lucide-react';
+import { Home, Film, Users, Compass, Bookmark, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import AvatarRing from '../ui/AvatarRing';
 
@@ -15,8 +15,14 @@ const navItems = [
 ];
 
 const Sidebar: React.FC = () => {
-  const { currentPet } = useAuthStore();
+  const { currentPet, logout } = useAuthStore();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <aside className="hidden lg:flex flex-col w-64 fixed left-0 top-16 bottom-0 bg-[var(--pb-bg)] border-r border-[var(--pb-border-faint)] py-6 px-3 overflow-y-auto">
@@ -76,8 +82,15 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <div className="mt-auto px-4 pt-4">
-        <p className="text-xs text-[var(--pb-muted)]/60 text-center">
+      <div className="mt-auto pt-4 flex flex-col gap-1">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-[var(--pb-muted)] hover:text-rose-400 hover:bg-rose-500/5 transition-all duration-200 cursor-pointer w-full"
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <span className="font-medium text-sm">Log Out</span>
+        </button>
+        <p className="text-xs text-[var(--pb-muted)]/50 text-center py-2">
           Made with 🐾 for pets
         </p>
       </div>

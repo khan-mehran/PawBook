@@ -295,7 +295,7 @@ const CreatePetProfile: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-[var(--pb-muted)] text-center">
-                  Your profile will be visible to the PawBook community 🌍
+                  Your profile will be visible to the FurBook community 🌍
                 </p>
               </div>
             )}
