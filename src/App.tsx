@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './lib/firebase';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/authStore';
+import { usePetStore } from './store/petStore';
 import PawLoader from './components/ui/PawLoader';
 import Navbar from './components/layout/Navbar';
 import Sidebar from './components/layout/Sidebar';
@@ -18,7 +19,7 @@ import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import SettingsPage from './components/settings/SettingsPage';
 
-/* ── Sync theme CSS var on mount ─── */
+/* ── Sync theme CSS var on mount ───────────────────── */
 const ThemeInit: React.FC = () => {
   const { theme } = useThemeStore();
   useEffect(() => {
@@ -27,42 +28,72 @@ const ThemeInit: React.FC = () => {
   return null;
 };
 
-/* ── Firebase auth state listener ─── */
+/* ── Firebase auth + pet-store sync ─────────────────
+   Called once on mount. After onAuthStateChanged fires
+   we know the real session state — only then render routes.
+   Also ensures the logged-in user's custom pet is in
+   petStore so /profile/:id always resolves.
+   ───────────────────────────────────────────────────── */
 const FirebaseAuthSync: React.FC<{ onReady: () => void }> = ({ onReady }) => {
-  const { setFirebaseUser } = useAuthStore();
+  const { setFirebaseUser, currentPet } = useAuthStore();
+  const { pets, addPet }                = usePetStore();
+  const readyFired                      = useRef(false);
+
   useEffect(() => {
+    const syncCustomPet = () => {
+      // If the logged-in user has a custom pet not yet in petStore, add it
+      const inStore = pets.some((p) => p.id === currentPet.id);
+      if (!inStore) addPet(currentPet);
+    };
+
     if (!isFirebaseConfigured) {
+      syncCustomPet();
       onReady();
       return;
     }
+
     const unsub = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      onReady();
+      if (fbUser) syncCustomPet();
+      if (!readyFired.current) {
+        readyFired.current = true;
+        onReady();
+      }
     });
     return unsub;
-  }, []);          // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 };
 
-/* ── Animated page wrapper ───────── */
-const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+/* ── Page transition ─────────────────────────────────
+   A simple fade-in on every route change.
+
+   WHY no AnimatePresence / mode="wait":
+   React Router updates <Routes> output immediately when
+   the URL changes. AnimatePresence mode="wait" holds the
+   old div alive during its exit animation — but by then
+   <Routes> has already swapped to the new page content,
+   so the old div shows the NEW page fading out, then
+   there is a blank gap before the new div enters.
+   Removing mode="wait" (and AnimatePresence entirely)
+   prevents the gap while keeping the enter animation.
+   ───────────────────────────────────────────────────── */
+const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.22 }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={location.pathname}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+    >
+      {children}
+    </motion.div>
   );
 };
 
-/* ── Authenticated layout ────────── */
+/* ── App shell (navbar + sidebar + content area) ─── */
 const AppLayout: React.FC<{ children: React.ReactNode; showRightPanel?: boolean }> = ({
   children,
   showRightPanel = false,
@@ -83,17 +114,16 @@ const AppLayout: React.FC<{ children: React.ReactNode; showRightPanel?: boolean 
   </div>
 );
 
-/* ── Route dispatcher ────────────── */
+/* ── Route guard + dispatcher ───────────────────── */
 const AppRoutes: React.FC = () => {
   const { isLoggedIn } = useAuthStore();
-  const location = useLocation();
+  const location       = useLocation();
 
   const isAuthRoute =
     location.pathname === '/login' ||
-    location.pathname === '/register' ||
     location.pathname.startsWith('/register');
 
-  /* Public auth routes — redirect to feed if already logged in */
+  /* Auth pages: redirect to feed if already logged in */
   if (isAuthRoute) {
     if (isLoggedIn) return <Navigate to="/" replace />;
     return (
@@ -105,7 +135,7 @@ const AppRoutes: React.FC = () => {
     );
   }
 
-  /* All other routes require login */
+  /* All other pages require login */
   if (!isLoggedIn) return <Navigate to="/login" replace />;
 
   /* Reels is full-screen — no chrome */
@@ -113,15 +143,19 @@ const AppRoutes: React.FC = () => {
 
   return (
     <AppLayout showRightPanel={location.pathname === '/'}>
-      <PageWrapper>
+      {/*
+        PageTransition key changes on every navigation → triggers a new
+        fade-in for each page. No AnimatePresence needed, no blank gap.
+      */}
+      <PageTransition>
         <Routes>
-          <Route path="/"                  element={<FeedPage />} />
-          <Route path="/profile/:petId"    element={<PetProfilePage />} />
-          <Route path="/create"            element={<CreatePetProfile />} />
-          <Route path="/friends"           element={<FriendsPage />} />
-          <Route path="/explore"           element={<FriendsPage />} />
-          <Route path="/settings"          element={<SettingsPage />} />
-          <Route path="/saved"             element={
+          <Route path="/"               element={<FeedPage />} />
+          <Route path="/profile/:petId" element={<PetProfilePage />} />
+          <Route path="/create"         element={<CreatePetProfile />} />
+          <Route path="/friends"        element={<FriendsPage />} />
+          <Route path="/explore"        element={<FriendsPage />} />
+          <Route path="/settings"       element={<SettingsPage />} />
+          <Route path="/saved"          element={
             <div className="text-center py-20">
               <div className="text-6xl mb-4">🔖</div>
               <p className="text-xl font-semibold text-[var(--pb-text)] mb-2">Saved Posts</p>
@@ -136,12 +170,15 @@ const AppRoutes: React.FC = () => {
             </div>
           } />
         </Routes>
-      </PageWrapper>
+      </PageTransition>
     </AppLayout>
   );
 };
 
+/* ── Root ───────────────────────────────────────── */
 const App: React.FC = () => {
+  // authReady starts true when Firebase is not configured (demo mode)
+  // so the app renders immediately without waiting for a Firebase callback
   const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
 
   return (
@@ -149,7 +186,6 @@ const App: React.FC = () => {
       <ThemeInit />
       <FirebaseAuthSync onReady={() => setAuthReady(true)} />
       {!authReady ? (
-        /* Show spinner while Firebase resolves the persisted session */
         <div className="min-h-screen flex items-center justify-center bg-[var(--pb-bg)]">
           <div className="text-center">
             <div className="text-6xl mb-4">🐾</div>
